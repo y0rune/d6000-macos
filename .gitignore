@@ -1,0 +1,13 @@
+# Dell firmware is not redistributable: fetched at runtime
+tool/dfu/
+*.dfu
+*.exe
+*.bin
+*.readback
+# local
+.venv/
+tool/d6000-replug
+.DS_Store
+# Obsidian KB note (private working notes)
+D6000 macOS Firmware.md
+__pycache__/
