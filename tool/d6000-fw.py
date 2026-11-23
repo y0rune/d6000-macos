@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Dell D6000 dock firmware update on macOS, replicating Dell A04 (D6000Updater.exe).
 
-Whole update in one go (asks before each write):
+Whole update in one go (asks once, then writes every outdated part):
   upgrade           status -> controller (c302) -> TI + Parade (6001) -> back to normal
 Single steps (check `status` after each):
   fetch             download Dell's A04 updater, check SHA-256, unpack the .dfu files (needs 7zz)
