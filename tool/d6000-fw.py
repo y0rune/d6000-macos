@@ -147,7 +147,7 @@ def displaylink(remove_driver):
         if ask("Install it with `brew install --cask displaylink`? Type yes: ") != "yes":
             sys.exit("aborted")
         run(["brew", "install", "--cask", "displaylink"])
-        sys.exit("Installed. Reboot, open DisplayLink Manager once, allow what macOS asks, then run `displaylink` again.")
+        sys.exit("Installed. Open DisplayLink Manager once, allow what macOS asks (reboot only if it says so), then run `displaylink` again.")
     subprocess.run(["open", "-g", DL_APP])
     time.sleep(10)
     # the driver checks the chip when it connects: replug in software if d6000-replug is built, else ask

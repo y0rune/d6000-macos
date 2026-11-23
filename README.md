@@ -10,7 +10,7 @@ Dell ships the D6000 firmware updater (A04) for Windows only. This repo reverse 
 |---|---|---|---|
 | Dock controller (STM32) | 0017 | **0020** | ✅ works |
 | TI USB-PD controller | 01020105 | **01020202** | ✅ works, verified by readback |
-| Parade video converter (HDMI) | 0B5D | **0B81** | ✅ works, verified by readback ([the erase trap](#parade-converter-the-dfu-util-erase-trap)) |
+| Parade DisplayPort → HDMI converter | 0B5D | **0B81** | ✅ works, verified by readback ([the erase trap](#parade-converter-the-dfu-util-erase-trap)) |
 | Genesys GL3523 hubs (`05e3:0610/0620`) | 8816 / 8817 | 8816 / 8817 | ✅ already the A04 version |
 | Genesys hub `05e3:0626` | 0663 | — | ✅ A04 has no firmware for it |
 | DisplayLink chip (Ethernet, audio, DisplayLink video) | 31.54 | — | ℹ️ not part of A04, updated by the DisplayLink driver ([how](#displaylink-chip-firmware)) |
@@ -94,7 +94,7 @@ $PY leave c302   # -> back to normal
 
 Finally **unplug the dock from AC power and from the Mac, wait 30 s and plug it back in** (power first). The TI chip loads its new firmware only at power-up. `status` should then show `st 0020`, `ti 01020202` and `pr 0B81`.
 
-While the controller is in DFU mode the dock's HDMI output may drop to a low resolution. It comes back after `leave` and a cable replug.
+While the controller is in DFU mode, monitors on the dock may drop to a low resolution. They come back after `leave` and a cable replug.
 
 ## How it works
 
@@ -142,7 +142,7 @@ After that, the readback matched the file byte for byte, and after a power cycle
 |---|---|---|
 | Dock controller (STM32) | `06c4:c411` | `d6000-fw.py` (A04 `ST0020`) |
 | TI USB-PD controller | via the controller | `d6000-fw.py` (A04 `TI01020202`) |
-| Parade converter (HDMI) | via the controller | `d6000-fw.py` (A04 `PR0B81`) |
+| Parade DisplayPort → HDMI converter | via the controller | `d6000-fw.py` (A04 `PR0B81`) |
 | Genesys GL3523 hubs ×2 | `05e3:0610` / `0620` | Dell ships ROMs `GL18816`/`GL28817` and flashes them with Genesys' Windows-only ISP tool. The version sits at offset `0x10e` of each ROM and the hub reports it as `bcdDevice`, so `status` can compare them. |
 | Genesys hub | `05e3:0626` | No firmware in A04. |
 | Genesys GL3590 | `05e3:0625` | A04 ships `HUB17054`/`HUB27061` for it, but the D6000 tested here does not contain this chip (most likely the D6000S variant). `status` compares it when present. |
@@ -152,7 +152,7 @@ After that, the readback matched the file byte for byte, and after a power cycle
 
 The DisplayLink chip (`17e9:6006`) is not in Dell's package. Its firmware ships **inside the DisplayLink driver**. Per DisplayLink's macOS release notes, the driver checks DL-6xxx devices when they connect and silently upgrades them to the firmware bundled with that driver version, if needed ([release notes](https://synaptics.com/sites/default/files/release_notes/2021-02/DisplayLink%20USB%20Graphics%20Software%20for%20Mac%20OS%20X%20and%20macOS4.3.1-Release%20Notes.txt)).
 
-**Scripted:** `./d6000-fw.py displaylink` reads the version, offers to install DisplayLink Manager (then reboot and run it again), starts the Manager, replugs the dock with `d6000-replug` (or asks you to replug the cable), waits up to 3 minutes for the silent upgrade, and prints before/after. Add `--remove-driver` to uninstall the driver at the end.
+**Scripted:** `./d6000-fw.py displaylink` reads the version, offers to install DisplayLink Manager (open it once, allow what macOS asks, run the command again; Homebrew says to reboot, but on our Mac the driver worked right away), starts the Manager, replugs the dock with `d6000-replug` (or asks you to replug the cable), waits up to 3 minutes for the silent upgrade, and prints before/after. Add `--remove-driver` to uninstall the driver at the end.
 
 **By hand:**
 
@@ -162,9 +162,9 @@ The DisplayLink chip (`17e9:6006`) is not in Dell's package. Its firmware ships 
 4. Check the version: `./d6000-fw.py status` (line `DisplayLink 17e9:6006`) or `system_profiler SPUSBHostDataType | grep -A8 'Dell Universal Dock'` (`USB Product Version`, `0x3154` = 31.54).
 
 Notes:
-- If the version does not change, the chip already runs the firmware bundled with that driver. Our dock stayed on 31.54 with DisplayLink Manager 17.1. Users report 31.59 on some D6000s, which may come from a different driver version (for example Dell's Windows DisplayLink driver, which updates the chip the same way).
+- If the version does not change, the chip already runs the firmware bundled with that driver. Our dock stayed on 31.54 with DisplayLink Manager 17.1, although the driver had claimed the chip's video interfaces and saw it reconnect, so 31.54 is what 17.1 bundles. Users report 31.59 on some D6000s, which may come from a different driver version (for example Dell's Windows DisplayLink driver, which updates the chip the same way).
 - After a firmware upgrade, older DisplayLink drivers may stop recognising the device, so keep the driver current.
-- You need the driver (and this firmware) only for monitors on the dock's DisplayLink video ports. Ethernet, audio, USB and the HDMI port (Parade, native DP alt mode) work without it, so you can uninstall the driver afterwards.
+- Monitors on the dock go through the DisplayLink chip, so you need the driver for them. Ethernet, audio and USB work without it. DisplayLink does not do high refresh rates: connect a 120/165 Hz monitor straight to the Mac. On our Mac the dock's USB-C link carried only USB 3 + USB 2.0, with no DisplayPort alt mode.
 
 ## How this was reverse engineered
 
