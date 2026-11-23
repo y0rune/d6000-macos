@@ -45,7 +45,7 @@ def fetch():
         if digest != A04_SHA256:
             sys.exit("SHA-256 mismatch: %s" % digest)
         names = [PARTS[p][0] for p in PARTS]
-        run(["7zz", "e", "-y", "-o" + DFU_DIR, exe] + ["dfu/" + n for n in names])
+        run(["7zz", "e", "-y", "-bso0", "-bsp0", "-o" + DFU_DIR, exe] + ["dfu/" + n for n in names])
     print("A04 firmware in", DFU_DIR)
 
 
