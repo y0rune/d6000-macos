@@ -13,7 +13,7 @@ Dell ships the D6000 firmware updater (A04) for Windows only. This repo reverse 
 | Parade video converter (HDMI) | 0B5D | **0B81** | ✅ works, verified by readback ([the erase trap](#parade-converter-the-dfu-util-erase-trap)) |
 | Genesys GL3523 hubs (`05e3:0610/0620`) | 8816 / 8817 | 8816 / 8817 | ✅ already the A04 version |
 | Genesys hub `05e3:0626` | 0663 | — | ✅ A04 has no firmware for it |
-| DisplayLink chip (Ethernet, audio, DisplayLink video) | 31.54 | — | ℹ️ not part of A04, updated by the DisplayLink driver |
+| DisplayLink chip (Ethernet, audio, DisplayLink video) | 31.54 | — | ℹ️ not part of A04, updated by the DisplayLink driver ([how](#displaylink-chip-firmware)) |
 
 `status` reports every one of these chips, so after an update you can see at a glance that nothing is left.
 
@@ -146,6 +146,20 @@ After that, the readback matched the file byte for byte, and after a power cycle
 | Genesys hub | `05e3:0626` | No firmware in A04. |
 | Genesys GL3590 | `05e3:0625` | A04 ships `HUB17054`/`HUB27061` for it, but the D6000 tested here does not contain this chip (most likely the D6000S variant). `status` compares it when present. |
 | DisplayLink | `17e9:6006` | Not in A04. The DisplayLink driver (DisplayLink Manager on macOS) updates it. It only matters for monitors on the dock's DisplayLink ports. Ethernet, audio and USB work without the driver. |
+
+## DisplayLink chip firmware
+
+The DisplayLink chip (`17e9:6006`) is not in Dell's package. Its firmware ships **inside the DisplayLink driver**. Per DisplayLink's macOS release notes, the driver checks DL-6xxx devices when they connect and silently upgrades them to the firmware bundled with that driver version, if needed ([release notes](https://synaptics.com/sites/default/files/release_notes/2021-02/DisplayLink%20USB%20Graphics%20Software%20for%20Mac%20OS%20X%20and%20macOS4.3.1-Release%20Notes.txt)).
+
+1. Install the current driver: `brew install --cask displaylink` (DisplayLink Manager), or download it from [synaptics.com/products/displaylink-graphics](https://www.synaptics.com/products/displaylink-graphics/downloads/macos).
+2. Reboot, open **DisplayLink Manager** once, and allow what macOS asks for (Screen Recording, login item).
+3. Unplug and replug the dock (or `sudo d6000-replug`) while the Mac is unlocked, so the driver sees the chip connect.
+4. Check the version: `./d6000-fw.py status` (line `DisplayLink 17e9:6006`) or `system_profiler SPUSBHostDataType | grep -A8 'Dell Universal Dock'` (`USB Product Version`, `0x3154` = 31.54).
+
+Notes:
+- If the version does not change, the chip already runs the firmware bundled with that driver. Our dock stayed on 31.54 with DisplayLink Manager 17.1. Users report 31.59 on some D6000s, which may come from a different driver version (for example Dell's Windows DisplayLink driver, which updates the chip the same way).
+- After a firmware upgrade, older DisplayLink drivers may stop recognising the device, so keep the driver current.
+- You need the driver (and this firmware) only for monitors on the dock's DisplayLink video ports. Ethernet, audio, USB and the HDMI port (Parade, native DP alt mode) work without it, so you can uninstall the driver afterwards.
 
 ## How this was reverse engineered
 
