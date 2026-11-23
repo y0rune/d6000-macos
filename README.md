@@ -60,6 +60,7 @@ $PY fetch      # download Dell's A04 package, verify SHA-256, unpack the .dfu fi
 $PY extract    # write st.bin / ti.bin / pr.bin (raw images, see "How it works")
 $PY status     # current versions vs A04 (read-only)
 $PY upgrade    # the whole update: asks once, then walks the controller through all modes
+$PY displaylink   # optional: DisplayLink chip firmware via the DisplayLink driver
 ```
 
 Example `status` before the update:
@@ -150,6 +151,10 @@ After that, the readback matched the file byte for byte, and after a power cycle
 ## DisplayLink chip firmware
 
 The DisplayLink chip (`17e9:6006`) is not in Dell's package. Its firmware ships **inside the DisplayLink driver**. Per DisplayLink's macOS release notes, the driver checks DL-6xxx devices when they connect and silently upgrades them to the firmware bundled with that driver version, if needed ([release notes](https://synaptics.com/sites/default/files/release_notes/2021-02/DisplayLink%20USB%20Graphics%20Software%20for%20Mac%20OS%20X%20and%20macOS4.3.1-Release%20Notes.txt)).
+
+**Scripted:** `./d6000-fw.py displaylink` reads the version, offers to install DisplayLink Manager (then reboot and run it again), starts the Manager, replugs the dock with `d6000-replug` (or asks you to replug the cable), waits up to 3 minutes for the silent upgrade, and prints before/after. Add `--remove-driver` to uninstall the driver at the end.
+
+**By hand:**
 
 1. Install the current driver: `brew install --cask displaylink` (DisplayLink Manager), or download it from [synaptics.com/products/displaylink-graphics](https://www.synaptics.com/products/displaylink-graphics/downloads/macos).
 2. Reboot, open **DisplayLink Manager** once, and allow what macOS asks for (Screen Recording, login item).

@@ -11,6 +11,9 @@ Single steps (check `status` after each):
   leave PID         DfuSe leave on 6001/c302 (6001 -> c302 per the updater's state machine)
   flash st|ti|pr    write (st only on c302, ti/pr only on 6001); ti/pr are read back and compared,
                     st is proven by the version after `leave c302` (the bootloader cannot upload)
+DisplayLink chip (not in A04, its firmware ships inside the DisplayLink driver):
+  displaylink [--remove-driver]   install/start DisplayLink Manager, replug the dock, wait for the
+                    driver's silent firmware upgrade, print before/after; optionally uninstall the driver
 Hubs (GL) are not handled: Genesys ISP tool, Windows only; A04 hub ROMs are GL 8816/8817.
 After st+ti: unplug the dock from AC and USB-C (TI/PR load their flash only at power-up).
 """
@@ -119,6 +122,52 @@ def other_chips():
         print("DisplayLink 17e9:6006 %X.%02X   updated by the DisplayLink driver, not by A04" % (dl.bcdDevice >> 8, dl.bcdDevice & 0xFF))
 
 
+DL_APP = "/Applications/DisplayLink Manager.app"
+
+
+def ask(prompt):
+    try:
+        return input(prompt)
+    except EOFError:  # no terminal (piped / </dev/null): treat as "no"
+        return ""
+
+
+def dl_version():
+    d = usb.core.find(idVendor=0x17E9, idProduct=0x6006)
+    return d and "%X.%02X" % (d.bcdDevice >> 8, d.bcdDevice & 0xFF)
+
+
+def displaylink(remove_driver):
+    before = dl_version()
+    if not before:
+        sys.exit("DisplayLink chip 17e9:6006 not found (dock plugged in and allowed by macOS?)")
+    print("DisplayLink firmware now:", before)
+    if not os.path.isdir(DL_APP):
+        print("DisplayLink Manager is not installed; it carries the firmware and upgrades the chip on connect.")
+        if ask("Install it with `brew install --cask displaylink`? Type yes: ") != "yes":
+            sys.exit("aborted")
+        run(["brew", "install", "--cask", "displaylink"])
+        sys.exit("Installed. Reboot, open DisplayLink Manager once, allow what macOS asks, then run `displaylink` again.")
+    subprocess.run(["open", "-g", DL_APP])
+    time.sleep(10)
+    # the driver checks the chip when it connects: replug in software if d6000-replug is built, else ask
+    replug = subprocess.run("command -v d6000-replug", shell=True, capture_output=True, text=True).stdout.strip()
+    if replug:
+        run(["sudo", replug])
+    else:
+        ask("Unplug the dock's USB-C cable, plug it back in (Mac unlocked), then press Enter: ")
+    after = before
+    for _ in range(180):  # the silent upgrade re-enumerates the chip; give it up to 3 min
+        time.sleep(1)
+        after = dl_version() or after
+        if after != before:
+            break
+    print("DisplayLink firmware: %s -> %s" % (before, after) if after != before else
+          "DisplayLink firmware unchanged (%s): already the version bundled with this driver" % after)
+    if remove_driver:
+        run(["brew", "uninstall", "--cask", "displaylink"])
+
+
 def detach():
     h = hid.device()
     h.open(VID, APP)
@@ -221,7 +270,7 @@ def upgrade():
         return
     extract()
     print("to update:", ", ".join("%s %s -> %s" % (p, v[p], PARTS[p][1]) for p in todo))
-    if input("Dock on AC power, nothing else plugged into it? Type yes: ") != "yes":
+    if ask("Dock on AC power, nothing else plugged into it? Type yes: ") != "yes":
         sys.exit("aborted")
     if "st" in todo:
         to_mode(BOOT)
@@ -243,6 +292,8 @@ def main():
     a = sys.argv[1:] or ["status"]
     if a[0] == "status":
         status()
+    elif a[0] == "displaylink" and a[1:] in ([], ["--remove-driver"]):
+        displaylink(a[1:] == ["--remove-driver"])
     elif a[0] == "upgrade":
         upgrade()
     elif a[0] == "fetch":
