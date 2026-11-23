@@ -164,7 +164,7 @@ The DisplayLink chip (`17e9:6006`) is not in Dell's package. Its firmware ships 
 Notes:
 - If the version does not change, the chip already runs the firmware bundled with that driver. Our dock stayed on 31.54 with DisplayLink Manager 17.1, although the driver had claimed the chip's video interfaces and saw it reconnect, so 31.54 is what 17.1 bundles. Users report 31.59 on some D6000s, which may come from a different driver version (for example Dell's Windows DisplayLink driver, which updates the chip the same way).
 - After a firmware upgrade, older DisplayLink drivers may stop recognising the device, so keep the driver current.
-- Monitors on the dock go through the DisplayLink chip, so you need the driver for them. Ethernet, audio and USB work without it. DisplayLink does not do high refresh rates: connect a 120/165 Hz monitor straight to the Mac. On our Mac the dock's USB-C link carried only USB 3 + USB 2.0, with no DisplayPort alt mode.
+- Monitors on the dock go through the DisplayLink chip, so you need the driver for them. Ethernet, audio and USB work without it. On our Mac the dock's USB-C link carried only USB 3 + USB 2.0, with no DisplayPort alt mode.
 
 ## How this was reverse engineered
 
