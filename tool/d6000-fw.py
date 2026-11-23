@@ -95,8 +95,28 @@ def status():
             print("%-3s current %-9s A04 %-9s %s" % (p, v[p], want, "ok" if v[p] == want else "UPDATE"))
     else:
         print("controller 06c4:c411 not present")
+    other_chips()
     print("DFU devices:", ["06c4:%04x" % p for p in dfu_pids()] or "none")
     subprocess.run("dfu-util -l 2>/dev/null | grep '^Found DFU'", shell=True)
+
+
+# A04 hub ROMs carry their version at offset 0x10e, which the hub reports as bcdDevice:
+# 1sthub GL3523 (05e3:0610/0620) 8816 + 8817; 2ndhub GL3590 (05e3:0625) 7054 + 7061, a chip the D6000 we tested does not have.
+HUBS = {0x0620: {0x8816, 0x8817}, 0x0625: {0x7054, 0x7061}}
+
+
+def other_chips():
+    """Parts A04 does not flash through the controller: report only (read-only)."""
+    for pid, want in HUBS.items():
+        have = {d.bcdDevice for d in usb.core.find(find_all=True, idVendor=0x05E3, idProduct=pid)}
+        if have:
+            print("hub 05e3:%04x %-14s A04 %-14s %s" % (pid, "/".join("%04X" % b for b in sorted(have)),
+                  "/".join("%04X" % b for b in sorted(want)), "ok" if have == want else "DIFFERENT (Genesys ISP, Windows only)"))
+    for d in usb.core.find(find_all=True, idVendor=0x05E3, idProduct=0x0626):
+        print("hub 05e3:0626 %04X           no firmware in A04 (nothing to update)" % d.bcdDevice)
+    dl = usb.core.find(idVendor=0x17E9, idProduct=0x6006)
+    if dl:
+        print("DisplayLink 17e9:6006 %X.%02X   updated by the DisplayLink driver, not by A04" % (dl.bcdDevice >> 8, dl.bcdDevice & 0xFF))
 
 
 def detach():

@@ -11,7 +11,11 @@ Dell ships the D6000 firmware updater (A04) for Windows only. This repo reverse 
 | Dock controller (STM32) | 0017 | **0020** | ✅ works |
 | TI USB-PD controller | 01020105 | **01020202** | ✅ works, verified by readback |
 | Parade video converter (HDMI) | 0B5D | **0B81** | ✅ works, verified by readback ([the erase trap](#parade-converter-the-dfu-util-erase-trap)) |
-| Genesys USB hubs | 8816 / 8817 | 8816 / 8817 | already current, not handled |
+| Genesys GL3523 hubs (`05e3:0610/0620`) | 8816 / 8817 | 8816 / 8817 | ✅ already the A04 version |
+| Genesys hub `05e3:0626` | 0663 | — | ✅ A04 has no firmware for it |
+| DisplayLink chip (Ethernet, audio, DisplayLink video) | 31.54 | — | ℹ️ not part of A04, updated by the DisplayLink driver |
+
+`status` reports every one of these chips, so after an update you can see at a glance that nothing is left.
 
 > [!WARNING]
 > Flashing firmware can brick your dock. Dell users report bricked D6000s even with Dell's own tool. Read the whole README first, keep the dock on its power brick, and do not unplug anything while a write is running. No warranty, see [LICENSE](LICENSE).
@@ -130,6 +134,18 @@ The Parade alt reports the memory layout `/0x00000000/0*001Ka,64*001Kg`: a zero-
 - Dell's updater (ST DfuSe) erases every sector of the mapping first. `d6000-fw.py` does the same: it sends the DfuSe erase command (`DFU_DNLOAD` block 0, payload `0x41` + 32-bit address) for each 1 KiB sector, polls `DFU_GETSTATUS` until the sector is done, aborts back to `dfuIDLE`, and only then lets `dfu-util -s 0x0:force` write.
 
 After that, the readback matched the file byte for byte, and after a power cycle the chip reported `0B81`.
+
+## Every chip in the dock
+
+| Chip | USB ID | How its firmware gets updated |
+|---|---|---|
+| Dock controller (STM32) | `06c4:c411` | `d6000-fw.py` (A04 `ST0020`) |
+| TI USB-PD controller | via the controller | `d6000-fw.py` (A04 `TI01020202`) |
+| Parade converter (HDMI) | via the controller | `d6000-fw.py` (A04 `PR0B81`) |
+| Genesys GL3523 hubs ×2 | `05e3:0610` / `0620` | Dell ships ROMs `GL18816`/`GL28817` and flashes them with Genesys' Windows-only ISP tool. The version sits at offset `0x10e` of each ROM and the hub reports it as `bcdDevice`, so `status` can compare them. |
+| Genesys hub | `05e3:0626` | No firmware in A04. |
+| Genesys GL3590 | `05e3:0625` | A04 ships `HUB17054`/`HUB27061` for it, but the D6000 tested here does not contain this chip (most likely the D6000S variant). `status` compares it when present. |
+| DisplayLink | `17e9:6006` | Not in A04. The DisplayLink driver (DisplayLink Manager on macOS) updates it. It only matters for monitors on the dock's DisplayLink ports. Ethernet, audio and USB work without the driver. |
 
 ## How this was reverse engineered
 
