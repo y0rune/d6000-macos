@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="250" viewBox="0 0 960 250" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b949e"/>
+    </marker>
+  </defs>
+  <rect width="960" height="250" rx="16" fill="#0d1117"/>
+  <text x="32" y="42" fill="#e6edf3" font-size="20" font-weight="600">Controller modes and how the tool moves between them</text>
+
+  <rect x="40" y="90" width="230" height="90" rx="10" fill="#161b22" stroke="#30363d"/>
+  <text x="155" y="122" fill="#e6edf3" font-size="16" font-weight="600" text-anchor="middle">06c4:c411</text>
+  <text x="155" y="144" fill="#8b949e" font-size="12" text-anchor="middle">normal operation (HID)</text>
+  <text x="155" y="162" fill="#8b949e" font-size="12" text-anchor="middle">versions are read here</text>
+
+  <rect x="365" y="90" width="230" height="90" rx="10" fill="#161b22" stroke="#d29922"/>
+  <text x="480" y="122" fill="#e6edf3" font-size="16" font-weight="600" text-anchor="middle">06c4:6001</text>
+  <text x="480" y="144" fill="#8b949e" font-size="12" text-anchor="middle">DFU inside the app</text>
+  <text x="480" y="162" fill="#e3b341" font-size="12" text-anchor="middle">write TI (alt 1), Parade (alt 2)</text>
+
+  <rect x="690" y="90" width="230" height="90" rx="10" fill="#161b22" stroke="#d29922"/>
+  <text x="805" y="122" fill="#e6edf3" font-size="16" font-weight="600" text-anchor="middle">06c4:c302</text>
+  <text x="805" y="144" fill="#8b949e" font-size="12" text-anchor="middle">BizLink bootloader</text>
+  <text x="805" y="162" fill="#e3b341" font-size="12" text-anchor="middle">write controller app (alt 0)</text>
+
+  <line x1="270" y1="120" x2="363" y2="120" stroke="#8b949e" stroke-width="2" marker-end="url(#a)"/>
+  <text x="316" y="110" fill="#e6edf3" font-size="12" text-anchor="middle">detach</text>
+  <text x="316" y="80" fill="#8b949e" font-size="11" text-anchor="middle">HID feature 01 55</text>
+
+  <line x1="595" y1="120" x2="688" y2="120" stroke="#8b949e" stroke-width="2" marker-end="url(#a)"/>
+  <text x="641" y="110" fill="#e6edf3" font-size="12" text-anchor="middle">leave</text>
+
+  <path d="M805,180 C805,235 155,235 155,182" fill="none" stroke="#8b949e" stroke-width="2" marker-end="url(#a)"/>
+  <text x="480" y="226" fill="#e6edf3" font-size="12" text-anchor="middle">leave (boots the app)</text>
+</svg>

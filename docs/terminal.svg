@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="506" viewBox="0 0 900 506">
+<rect width="900" height="506" rx="12" fill="#0d1117" stroke="#30363d"/>
+<circle cx="24" cy="22" r="6" fill="#ff5f57"/><circle cx="44" cy="22" r="6" fill="#febc2e"/><circle cx="64" cy="22" r="6" fill="#28c840"/>
+<text x="450" y="27" fill="#8b949e" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="13" text-anchor="middle">d6000-macos/tool — zsh</text>
+<line x1="0" y1="42" x2="900" y2="42" stroke="#30363d"/>
+<text x="24" y="64" fill="#e6edf3" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" xml:space="preserve">$ ./d6000-fw.py status</text>
+<text x="24" y="86" fill="#e3b341" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" xml:space="preserve">st  current 0017      A04 0020      UPDATE</text>
+<text x="24" y="108" fill="#e3b341" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" xml:space="preserve">ti  current 01020105  A04 01020202  UPDATE</text>
+<text x="24" y="130" fill="#e3b341" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" xml:space="preserve">pr  current 0B5D      A04 0B81      UPDATE</text>
+<text x="24" y="152" fill="#e6edf3" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" xml:space="preserve"></text>
+<text x="24" y="174" fill="#e6edf3" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" xml:space="preserve">$ ./d6000-fw.py upgrade</text>
+<text x="24" y="196" fill="#8b949e" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" xml:space="preserve">to update: st 0017 -&gt; 0020, ti 01020105 -&gt; 01020202, pr 0B5D -&gt; 0B81</text>
+<text x="24" y="218" fill="#8b949e" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" xml:space="preserve">Dock on AC power, nothing else plugged into it? Type yes: yes</text>
+<text x="24" y="240" fill="#79c0ff" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" xml:space="preserve">+ dfu-util -d 06c4:c302 -a 0 -s 0x8005000 -D st.bin</text>
+<text x="24" y="262" fill="#7ee787" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" xml:space="preserve">controller now 0020</text>
+<text x="24" y="284" fill="#8b949e" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" xml:space="preserve">erased 64 pages at 0x0</text>
+<text x="24" y="306" fill="#79c0ff" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" xml:space="preserve">+ dfu-util -d 06c4:6001 -a 2 -s 0x0:force -D pr.bin</text>
+<text x="24" y="328" fill="#7ee787" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" xml:space="preserve">VERIFY OK</text>
+<text x="24" y="350" fill="#8b949e" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" xml:space="preserve">Done. Now unplug the dock from AC and from the Mac, wait 30 s, ...</text>
+<text x="24" y="372" fill="#e6edf3" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" xml:space="preserve"></text>
+<text x="24" y="394" fill="#e6edf3" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" xml:space="preserve">$ ./d6000-fw.py status      # after the power cycle</text>
+<text x="24" y="416" fill="#7ee787" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" xml:space="preserve">st  current 0020      A04 0020      ok</text>
+<text x="24" y="438" fill="#7ee787" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" xml:space="preserve">ti  current 01020202  A04 01020202  ok</text>
+<text x="24" y="460" fill="#7ee787" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" xml:space="preserve">pr  current 0B81      A04 0B81      ok</text>
+</svg>

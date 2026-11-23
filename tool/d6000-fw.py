@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """Dell D6000 dock firmware update on macOS, replicating Dell A04 (D6000Updater.exe).
 
-Steps (run one at a time, check `status` after each):
+Whole update in one go (asks before each write):
+  upgrade           status -> controller (c302) -> TI + Parade (6001) -> back to normal
+Single steps (check `status` after each):
   fetch             download Dell's A04 updater, check SHA-256, unpack the .dfu files (needs 7zz)
   status            versions + DFU devices (read-only)
   extract           write st.bin / ti.bin / pr.bin from the A04 .dfu files (read-only)
   detach            HID detach: controller 06c4:c411 -> DFU (06c4:6001 app-DFU or 06c4:c302 bootloader)
   leave PID         DfuSe leave on 6001/c302 (6001 -> c302 per the updater's state machine)
-  flash st|ti|pr    write + read back + compare (st only on c302, ti/pr only on 6001)
+  flash st|ti|pr    write (st only on c302, ti/pr only on 6001); ti/pr are read back and compared,
+                    st is proven by the version after `leave c302` (the bootloader cannot upload)
 Hubs (GL) are not handled: Genesys ISP tool, Windows only; A04 hub ROMs are GL 8816/8817.
 After st+ti: unplug the dock from AC and USB-C (TI/PR load their flash only at power-up).
 """
-import hashlib, os, struct, subprocess, sys, tempfile
+import hashlib, os, struct, subprocess, sys, tempfile, time
 import hid, usb.core, usb.util
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -112,10 +115,33 @@ def leave(pid):
     run(["dfu-util", "-d", "06c4:%04x" % pid, "-a", "0", "-s", "0x08000000:leave"])
 
 
+def dfuse_erase(pid, alt, addr, size, page=0x400):
+    """DfuSe page erase (DNLOAD block 0, [0x41, addr]) for every page, like Dell's erase phase.
+
+    dfu-util 0.11 skips the erase on the Parade alt: its layout "0*001Ka,64*001Kg" starts with a
+    zero-page read-only segment at 0x0 that dfu-util treats as covering the whole range.
+    """
+    d = usb.core.find(idVendor=VID, idProduct=pid)
+    usb.util.claim_interface(d, 0)
+    try:
+        d.set_interface_altsetting(0, alt)
+        for a in range(addr, addr + size, page):
+            d.ctrl_transfer(0x21, 1, 0, 0, bytes([0x41]) + struct.pack("<I", a))  # DFU_DNLOAD
+            while True:
+                st = d.ctrl_transfer(0xA1, 3, 0, 0, 6)  # DFU_GETSTATUS
+                if st[0] != 0:
+                    sys.exit("erase at %#x failed: DFU status %d state %d" % (a, st[0], st[4]))
+                if st[4] != 4:  # leave dfuDNBUSY
+                    break
+                time.sleep((st[1] | st[2] << 8 | st[3] << 16) / 1000.0)
+        d.ctrl_transfer(0x21, 6, 0, 0, None)  # DFU_ABORT -> dfuIDLE for dfu-util
+        print("erased %d pages at %#x" % (size // page, addr))
+    finally:
+        usb.util.release_interface(d, 0)
+        usb.util.dispose_resources(d)
+
+
 def flash(part):
-    if part == "pr":
-        # dfu-util needs :force here (layout "0*001Ka" misparsed); even then the controller ACKs but keeps 0B5D (2026-11-22)
-        sys.exit("Parade write is not solved yet, see README, section Parade converter")
     f, want, pid, alt, addr, _ = PARTS[part]
     path = bin_path(part)
     assert os.path.isfile(path), "run extract first"
@@ -124,7 +150,13 @@ def flash(part):
         sys.exit("%s must be written on 06c4:%04x, present: %s" % (part, pid, ["%04x" % p for p in dfu_pids()]))
     dev = "06c4:%04x" % pid
     size = os.path.getsize(path)
-    run(["dfu-util", "-d", dev, "-a", str(alt), "-s", "%#x" % addr, "-D", path])
+    target = "%#x" % addr
+    if part == "pr":
+        dfuse_erase(pid, alt, addr, size)
+        target += ":force"  # dfu-util would otherwise refuse the misparsed layout
+    run(["dfu-util", "-d", dev, "-a", str(alt), "-s", target, "-D", path])
+    if part == "st":
+        return  # c302 cannot upload; the version after `leave c302` is the proof
     rb = path + ".readback"
     if os.path.exists(rb):
         os.remove(rb)
@@ -132,23 +164,67 @@ def flash(part):
     ok = open(rb, "rb").read() == open(path, "rb").read()
     print("VERIFY", "OK" if ok else "MISMATCH")
     if not ok:
-        sys.exit(1)
-    if part == "st":
-        # the bootloader must be untouched, or the next power cycle bricks the dock
-        bl = os.path.join(HERE, "bootloader.readback")
-        if os.path.exists(bl):
-            os.remove(bl)
-        run(["dfu-util", "-d", dev, "-a", "0", "-s", "0x08000000:0x5000", "-U", bl])
-        same = open(bl, "rb").read() == element(f)[1][:0x5000]
-        print("BOOTLOADER", "intact" if same else "CHANGED")
-        if not same:
-            sys.exit(1)
+        sys.exit("%s readback differs: do NOT power off the dock, retry `flash %s`" % (part, part))
+
+
+def wait_pid(pid, secs=60):
+    for _ in range(secs):
+        if pid == APP and versions() or pid != APP and dfu_pids() == [pid]:
+            return
+        time.sleep(1)
+    sys.exit("timeout waiting for 06c4:%04x" % pid)
+
+
+def to_mode(pid):
+    """Walk c411 -> 6001 -> c302 (and back) until the controller is in the wanted mode."""
+    for _ in range(4):
+        if pid == APP and versions() or pid != APP and dfu_pids() == [pid]:
+            return
+        cur = dfu_pids()
+        if not cur:
+            detach()
+            wait_pid(APPDFU)
+            time.sleep(8)  # Dell waits 7.5 s after 6001 shows up
+        else:
+            leave(cur[0])
+            time.sleep(2)
+    sys.exit("could not reach 06c4:%04x" % pid)
+
+
+def upgrade():
+    v = versions()
+    if not v:
+        sys.exit("controller 06c4:c411 not found (dock plugged in and allowed by macOS?)")
+    todo = [p for p in ("st", "ti", "pr") if v[p] != PARTS[p][1]]
+    if not todo:
+        print("everything already on A04")
+        return
+    extract()
+    print("to update:", ", ".join("%s %s -> %s" % (p, v[p], PARTS[p][1]) for p in todo))
+    if input("Dock on AC power, nothing else plugged into it? Type yes: ") != "yes":
+        sys.exit("aborted")
+    if "st" in todo:
+        to_mode(BOOT)
+        flash("st")
+        to_mode(APP)
+        if versions()["st"] != PARTS["st"][1]:
+            sys.exit("controller did not come up with %s" % PARTS["st"][1])
+        print("controller now", PARTS["st"][1])
+    for p in ("ti", "pr"):
+        if p in todo:
+            to_mode(APPDFU)
+            flash(p)
+    to_mode(APP)
+    print("Done. Now unplug the dock from AC and from the Mac, wait 30 s, plug AC first, then the Mac,")
+    print("allow the accessory, and run `status` (TI and Parade load their firmware only at power-up).")
 
 
 def main():
     a = sys.argv[1:] or ["status"]
     if a[0] == "status":
         status()
+    elif a[0] == "upgrade":
+        upgrade()
     elif a[0] == "fetch":
         fetch()
     elif a[0] == "extract":

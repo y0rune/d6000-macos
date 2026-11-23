@@ -4,11 +4,13 @@
 
 Dell ships the D6000 firmware updater (A04) for Windows only. This repo reverse engineers what it does and repeats it on macOS (Apple Silicon tested) with `dfu-util`, plus a small tool that "replugs" the dock in software.
 
+![What sits inside the D6000: USB-C mux, Parade converter, Genesys hubs, DisplayLink chip, TI PD and the STM32 dock controller](docs/d6000-architecture.svg)
+
 | Part | Firmware before | After (A04) | Status |
 |---|---|---|---|
 | Dock controller (STM32) | 0017 | **0020** | ✅ works |
 | TI USB-PD controller | 01020105 | **01020202** | ✅ works, verified by readback |
-| Parade video converter | 0B5D | 0B81 | ❌ not solved yet ([details](#parade-converter-not-solved)) |
+| Parade video converter (HDMI) | 0B5D | **0B81** | ✅ works, verified by readback ([the erase trap](#parade-converter-the-dfu-util-erase-trap)) |
 | Genesys USB hubs | 8816 / 8817 | 8816 / 8817 | already current, not handled |
 
 > [!WARNING]
@@ -20,7 +22,7 @@ Dell ships the D6000 firmware updater (A04) for Windows only. This repo reverse 
 - [Quick start](#quick-start)
 - [How it works](#how-it-works)
 - [Software replug](#software-replug)
-- [Parade converter (not solved)](#parade-converter-not-solved)
+- [Parade converter: the dfu-util erase trap](#parade-converter-the-dfu-util-erase-trap)
 - [How this was reverse engineered](#how-this-was-reverse-engineered)
 - [Legal](#legal)
 
@@ -53,6 +55,7 @@ PY=".venv/bin/python -I d6000-fw.py"
 $PY fetch      # download Dell's A04 package, verify SHA-256, unpack the .dfu files
 $PY extract    # write st.bin / ti.bin / pr.bin (raw images, see "How it works")
 $PY status     # current versions vs A04 (read-only)
+$PY upgrade    # the whole update: asks once, then walks the controller through all modes
 ```
 
 Example `status` before the update:
@@ -64,7 +67,13 @@ pr  current 0B5D      A04 0B81      UPDATE
 DFU devices: none
 ```
 
-Disconnect everything from the dock except power and the USB-C cable to the Mac. Then run the steps **one at a time**, checking `status` after each:
+Disconnect everything from the dock except power and the USB-C cable to the Mac, then run `upgrade`. It reads the versions, picks only the outdated parts, asks for a single `yes`, and then does what the manual steps below do, checking the USB identity after every step.
+
+![Terminal: status before, upgrade, status after the power cycle](docs/terminal.svg)
+
+<sub>Real output from the update of one dock, condensed (dfu-util progress lines removed; the controller was updated in an earlier run).</sub>
+
+Manual steps, **one at a time**, checking `status` after each:
 
 ```sh
 $PY detach       # controller -> DFU mode, shows up as 06c4:6001 after ~3 s
@@ -73,17 +82,20 @@ $PY flash st     # write the controller app (only allowed on c302)
 $PY leave c302   # boots the new controller firmware: status shows st 0020
 $PY detach       # -> 06c4:6001 again; wait ~8 s
 $PY flash ti     # write TI PD firmware, then read back and compare
+$PY flash pr     # erase 64 x 1 KiB sectors, write Parade firmware, read back and compare
 $PY leave 6001   # -> c302
 $PY leave c302   # -> back to normal
 ```
 
-Finally **unplug the dock from AC power and from the Mac, wait 30 s and plug it back in** (power first). The TI chip loads its new firmware only at power-up. `status` should then show `st 0020` and `ti 01020202`.
+Finally **unplug the dock from AC power and from the Mac, wait 30 s and plug it back in** (power first). The TI chip loads its new firmware only at power-up. `status` should then show `st 0020`, `ti 01020202` and `pr 0B81`.
 
 While the controller is in DFU mode the dock's HDMI output may drop to a low resolution. It comes back after `leave` and a cable replug.
 
 ## How it works
 
 The dock controller is an STM32 running BizLink firmware (BizLink is the dock's ODM). It has three USB identities:
+
+![Controller modes: c411 --detach--> 6001 --leave--> c302 --leave--> c411](docs/d6000-modes.svg)
 
 | VID:PID | Mode | What can be written |
 |---|---|---|
@@ -96,7 +108,7 @@ The dock controller is an STM32 running BizLink firmware (BizLink is the dock's 
 - **Leave:** a standard DfuSe "leave" (`dfu-util -s 0x08000000:leave`): from `6001` it goes to the bootloader `c302`, from `c302` it boots the app.
 - **Controller image:** `ST0020.dfu` covers `0x08000000–0x0801FFFF`, but the first 20 KiB are the bootloader in read-only pages. The tool writes bytes `0x5000…` to `0x08005000` (110 592 bytes, no FF trimming: a 256-byte signature sits at the end). The bootloader does not support reading flash back, so the controller write is proven by the version it reports after `leave c302` (Dell does not verify it either).
 - **Raw images:** the `.dfu` files carry PID `c411` in their suffix, so `dfu-util` would refuse them on `6001`/`c302`. `extract` writes plain `.bin` files instead.
-- **Safety checks in `d6000-fw.py`:** a write only starts when exactly the right DFU PID is present. Writing alt 0 from `6001` would overwrite the running app, so the tool refuses. TI is read back and compared byte for byte.
+- **Safety checks in `d6000-fw.py`:** a write only starts when exactly the right DFU PID is present. Writing alt 0 from `6001` would overwrite the running app, so the tool refuses. TI and Parade are read back and compared byte for byte.
 
 ## Software replug
 
@@ -109,11 +121,15 @@ sudo d6000-replug
 
 It needs root, because it opens the hub with `IOUSBHostDevice` device capture and calls `reset()`. libusb/pyusb `reset()` does not work on hubs on macOS (ENODEV, even as root). Resetting only the USB 3 side (`05e3:0620`) left the USB 2.0 devices missing, which is why the tool resets `0610` first.
 
-## Parade converter (not solved)
+## Parade converter: the dfu-util erase trap
 
-- `dfu-util` 0.11 misparses the alt 2 layout `0*001Ka,64*001Kg` (a segment with zero pages) and refuses: `Last page at 0x0000ffff is not writeable`. `-s 0x0:force` gets past that.
-- After that, erase and download report success with no DFU error, but a readback still returns the old image, and after a power cycle the chip still reports `0B5D`. The old firmware keeps working.
-- Dell's tool most likely sends an extra command before writing Parade that has not been identified yet. That's why `flash pr` is blocked in the tool. Pull requests welcome: the next lead is the erase operation in `STDFUPRT.dll` and what the updater does after "Upgrade PR chip done!".
+The Parade alt reports the memory layout `/0x00000000/0*001Ka,64*001Kg`: a zero-page read-only segment, then 64 writable 1 KiB sectors, both starting at `0x0`.
+
+- `dfu-util` 0.11 matches address `0x0` to the empty read-only segment. It refuses the download (`Last page at 0x0000ffff is not writeable`), and with `-s 0x0:force` it writes **without erasing anything**.
+- The controller silently drops writes to flash that was not erased. Every DFU status says "OK", yet the chip keeps its old firmware.
+- Dell's updater (ST DfuSe) erases every sector of the mapping first. `d6000-fw.py` does the same: it sends the DfuSe erase command (`DFU_DNLOAD` block 0, payload `0x41` + 32-bit address) for each 1 KiB sector, polls `DFU_GETSTATUS` until the sector is done, aborts back to `dfuIDLE`, and only then lets `dfu-util -s 0x0:force` write.
+
+After that, the readback matched the file byte for byte, and after a power cycle the chip reported `0B81`.
 
 ## How this was reverse engineered
 
